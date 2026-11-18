@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NXT-Scratch IDE</title>
+  <link rel="stylesheet" href="/style.css">
+  <!-- Google Fonts for modern typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header with connection statuses -->
+    <header class="app-header">
+      <div class="header-logo">
+        <span class="logo-nxt">NXT</span><span class="logo-scratch">-Scratch</span>
+      </div>
+      <div class="header-controls">
+        <div class="status-indicator">
+          <div class="status-led" id="connection-led"></div>
+          <span class="status-text" id="connection-status">Disconnected</span>
+        </div>
+        <div class="battery-meter" id="battery-container" style="display: none;">
+          <svg class="battery-icon" viewBox="0 0 24 24">
+            <rect x="2" y="6" width="16" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="10" x2="20" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <rect id="battery-fill" x="4" y="8" width="12" height="8" fill="currentColor"/>
+          </svg>
+          <span id="battery-voltage">0.0V</span>
+        </div>
+        <button id="btn-connect" class="btn btn-primary">Connect NXT</button>
+        <button id="btn-disconnect" class="btn btn-danger" style="display: none;">Disconnect</button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <main class="app-body">
+      <!-- Left: Blockly Canvas -->
+      <section class="workspace-panel">
+        <div class="panel-header">
+          <div class="panel-title">Visual Code Editor</div>
+          <div class="program-controls">
+            <!-- Direct Bluetooth Command Runner -->
+            <button id="btn-run" class="btn btn-success" title="Execute blocks step-by-step via Direct Commands" disabled>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+              Run (Direct)
+            </button>
+            <!-- Autonomous On-Brick Compilation and Flash -->
+            <button id="btn-flash" class="btn btn-primary" title="Compile to .rxe and upload to NXT brick" disabled>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z" fill="currentColor"/></svg>
+              Flash to NXT
+            </button>
+            <!-- Direct .rxe binary uploader -->
+            <button id="btn-upload-rxe" class="btn btn-secondary" title="Upload pre-compiled .rxe binary to NXT" disabled>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" fill="currentColor"/></svg>
+              Upload .rxe
+            </button>
+            <button id="btn-stop" class="btn btn-warning" title="Stop robot execution immediately" disabled>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/></svg>
+              Stop
+            </button>
+            <span class="divider"></span>
+            <button id="btn-export-nxc" class="btn btn-secondary" title="Download NXC source code">Export NXC</button>
+            <button id="btn-save" class="btn btn-secondary" title="Save Blockly XML/JSON">Save</button>
+            <button id="btn-load" class="btn btn-secondary" title="Load Blockly XML/JSON">Load</button>
+            <button id="btn-clear" class="btn btn-secondary btn-icon-only" title="Clear Canvas">🗑️</button>
+          </div>
+        </div>
+        <!-- Progress bar for Bluetooth upload -->
+        <div id="transfer-progress-container" class="transfer-progress-container" style="display: none;">
+          <div class="transfer-progress-bar-wrap">
+            <span id="transfer-progress-label" class="transfer-progress-label">Uploading program to NXT...</span>
+            <span id="transfer-progress-pct" class="transfer-progress-pct">0%</span>
+          </div>
+          <div class="transfer-progress-track">
+            <div id="transfer-progress-bar" class="transfer-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+        <!-- Blockly workspace div -->
+        <div id="blockly-editor" class="blockly-container"></div>
+      </section>
+
+      <!-- Right: Dashboard & Terminal Logs -->
+      <section class="dashboard-panel">
+        <!-- Dashboard Top: Sensors/Motors Live Values -->
+        <div class="dashboard-section card">
+          <h2 class="section-title">Robot Telemetry</h2>
+          
+          <!-- Port Configuration & Readings -->
+          <div class="ports-grid">
+            <!-- Sensors S1 - S4 -->
+            <div class="port-card sensor-port" data-port="0">
+              <div class="port-header">
+                <span class="port-label">S1</span>
+                <select class="port-config" id="config-s1">
+                  <option value="none">Empty</option>
+                  <option value="touch">Touch Sensor</option>
+                  <option value="light_active">Light Active (LED On)</option>
+                  <option value="light_inactive">Light Ambient (LED Off)</option>
+                  <option value="sound">Sound Sensor</option>
+                  <option value="ultrasonic">Ultrasonic (Distance)</option>
+                </select>
+              </div>
+              <div class="port-value-display">
+                <div class="sensor-value" id="val-s1">--</div>
+                <div class="value-bar-container"><div class="value-bar" id="bar-s1" style="width: 0%;"></div></div>
+              </div>
+            </div>
+
+            <div class="port-card sensor-port" data-port="1">
+              <div class="port-header">
+                <span class="port-label">S2</span>
+                <select class="port-config" id="config-s2">
+                  <option value="none">Empty</option>
+                  <option value="touch">Touch Sensor</option>
+                  <option value="light_active">Light Active (LED On)</option>
+                  <option value="light_inactive">Light Ambient (LED Off)</option>
+                  <option value="sound">Sound Sensor</option>
+                  <option value="ultrasonic">Ultrasonic (Distance)</option>
+                </select>
+              </div>
+              <div class="port-value-display">
+                <div class="sensor-value" id="val-s2">--</div>
+                <div class="value-bar-container"><div class="value-bar" id="bar-s2" style="width: 0%;"></div></div>
+              </div>
+            </div>
+
+            <div class="port-card sensor-port" data-port="2">
+              <div class="port-header">
+                <span class="port-label">S3</span>
+                <select class="port-config" id="config-s3">
+                  <option value="none">Empty</option>
+                  <option value="touch">Touch Sensor</option>
+                  <option value="light_active">Light Active (LED On)</option>
+                  <option value="light_inactive">Light Ambient (LED Off)</option>
+                  <option value="sound">Sound Sensor</option>
+                  <option value="ultrasonic">Ultrasonic (Distance)</option>
+                </select>
+              </div>
+              <div class="port-value-display">
+                <div class="sensor-value" id="val-s3">--</div>
+                <div class="value-bar-container"><div class="value-bar" id="bar-s3" style="width: 0%;"></div></div>
+              </div>
+            </div>
+
+            <div class="port-card sensor-port" data-port="3">
+              <div class="port-header">
+                <span class="port-label">S4</span>
+                <select class="port-config" id="config-s4">
+                  <option value="none">Empty</option>
+                  <option value="touch">Touch Sensor</option>
+                  <option value="light_active">Light Active (LED On)</option>
+                  <option value="light_inactive">Light Ambient (LED Off)</option>
+                  <option value="sound">Sound Sensor</option>
+                  <option value="ultrasonic">Ultrasonic (Distance)</option>
+                </select>
+              </div>
+              <div class="port-value-display">
+                <div class="sensor-value" id="val-s4">--</div>
+                <div class="value-bar-container"><div class="value-bar" id="bar-s4" style="width: 0%;"></div></div>
+              </div>
+            </div>
+
+            <!-- Motors A, B, C -->
+            <div class="port-card motor-port" data-port="A">
+              <div class="port-header">
+                <span class="port-label">Motor A</span>
+                <span class="motor-speed-badge" id="badge-motor-A">Idle</span>
+              </div>
+              <div class="port-value-display">
+                <div class="motor-tacho" id="val-motor-A">0°</div>
+                <div class="value-bar-container"><div class="value-bar motor-bar" id="bar-motor-A" style="width: 0%;"></div></div>
+              </div>
+            </div>
+
+            <div class="port-card motor-port" data-port="B">
+              <div class="port-header">
+                <span class="port-label">Motor B</span>
+                <span class="motor-speed-badge" id="badge-motor-B">Idle</span>
+              </div>
+              <div class="port-value-display">
+                <div class="motor-tacho" id="val-motor-B">0°</div>
+                <div class="value-bar-container"><div class="value-bar motor-bar" id="bar-motor-B" style="width: 0%;"></div></div>
+              </div>
+            </div>
+
+            <div class="port-card motor-port" data-port="C">
+              <div class="port-header">
+                <span class="port-label">Motor C</span>
+                <span class="motor-speed-badge" id="badge-motor-C">Idle</span>
+              </div>
+              <div class="port-value-display">
+                <div class="motor-tacho" id="val-motor-C">0°</div>
+                <div class="value-bar-container"><div class="value-bar motor-bar" id="bar-motor-C" style="width: 0%;"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard Bottom: Terminal logs / generated code -->
+        <div class="log-section card">
+          <div class="tabs-header">
+            <button class="tab-btn active" data-tab="log-console">System Log</button>
+            <button class="tab-btn" data-tab="log-nxc">NXC Code (C)</button>
+            <button class="tab-btn" data-tab="log-code">JavaScript Output</button>
+          </div>
+          <div class="tab-content active" id="log-console">
+            <div class="terminal" id="terminal-output">
+              <div class="terminal-line system">NXT-Scratch System Ready. Connect your NXT control brick to begin.</div>
+            </div>
+          </div>
+          <div class="tab-content" id="log-nxc">
+            <pre class="code-preview"><code id="nxc-output">// Generated NXC C-code will appear here</code></pre>
+          </div>
+          <div class="tab-content" id="log-code">
+            <pre class="code-preview"><code id="code-output">// Generated JavaScript code will appear here</code></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Hidden File Inputs for Load Block Program & .rxe upload -->
+  <input type="file" id="file-input" style="display: none;" accept=".xml,.json">
+  <input type="file" id="rxe-file-input" style="display: none;" accept=".rxe">
+
+  <!-- Custom Modal Dialog (for variables, prompts) -->
+  <div id="custom-modal-backdrop" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-title" class="modal-title">New Variable</h3>
+        <button id="modal-btn-close" class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label id="modal-message" for="modal-input" class="modal-label">New variable name:</label>
+        <input type="text" id="modal-input" class="modal-input" autocomplete="off" spellcheck="false" placeholder="Enter name...">
+      </div>
+      <div class="modal-footer">
+        <button id="modal-btn-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="modal-btn-confirm" class="btn btn-primary">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
